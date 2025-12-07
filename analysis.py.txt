@@ -1,0 +1,129 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy import stats
+
+# --- CLASS DEFINITION ---
+
+class ServiceDataAuditor:
+    """
+    A class to ingest, clean, and audit customer service data.
+    Designed to identify operational inefficiencies and data anomalies.
+    """
+    
+    def __init__(self, data_path=None):
+        # If no path is provided, we will generate mock data for demonstration
+        if data_path:
+            self.df = pd.read_csv(data_path)
+        else:
+            print("No data file provided. Generating mock dataset...")
+            self.df = self._generate_mock_data()
+
+    def _generate_mock_data(self):
+        """Generates synthetic customer service data with intentional anomalies."""
+        np.random.seed(42)
+        n_samples = 1000
+        
+        data = {
+            'ticket_id': [f'TKT-{1000+i}' for i in range(n_samples)],
+            'agent_id': np.random.choice(['AGT_01', 'AGT_02', 'AGT_03', 'AGT_04'], n_samples),
+            'service_category': np.random.choice(['Billing', 'Network', 'General', 'Dispute'], n_samples),
+            # Generate normal distribution for service times (minutes)
+            'resolution_time_mins': np.random.normal(loc=15, scale=5, size=n_samples) 
+        }
+        
+        df = pd.DataFrame(data)
+        
+        # INTRODUCE NOISE: Add some outliers (e.g., resolution times that are way too high)
+        # This simulates the "operational inefficiencies" mentioned in your application
+        outliers = pd.DataFrame({
+            'ticket_id': [f'TKT-ERR-{i}' for i in range(20)],
+            'agent_id': ['AGT_05'] * 20,
+            'service_category': ['Billing'] * 20,
+            'resolution_time_mins': np.random.uniform(100, 200, 20) # Extreme outliers
+        })
+        
+        # INTRODUCE NOISE: Add duplicates to simulate messy raw data
+        df = pd.concat([df, outliers, df.iloc[:10]]).reset_index(drop=True)
+        return df
+
+    def clean_data(self):
+        """
+        Standardizes data and removes duplicates.
+        Demonstrates 'Data Management & Reporting' skills.
+        """
+        initial_count = len(self.df)
+        
+        # Remove duplicates
+        self.df.drop_duplicates(subset='ticket_id', keep='first', inplace=True)
+        
+        # Handle missing values (impute with median for numerical columns)
+        self.df['resolution_time_mins'] = self.df['resolution_time_mins'].fillna(self.df['resolution_time_mins'].median())
+        
+        cleaned_count = len(self.df)
+        print(f"Data Cleaning Complete: Removed {initial_count - cleaned_count} duplicate records.")
+        return self.df
+
+    def detect_anomalies(self, threshold=3):
+        """
+        Identifies outliers using Z-Score (statistical anomaly detection).
+        This highlights the 'Audit Mindset' described in the application.
+        
+        Args:
+            threshold (int): The Z-score threshold to classify as an outlier.
+        """
+        # Calculate Z-scores
+        self.df['z_score'] = np.abs(stats.zscore(self.df['resolution_time_mins']))
+        
+        # Flag anomalies
+        anomalies = self.df[self.df['z_score'] > threshold]
+        
+        print(f"\nAudit Report:")
+        print(f"------------------------------------------------")
+        print(f"Total Transactions Audited: {len(self.df)}")
+        print(f"Anomalies Detected: {len(anomalies)}")
+        print(f"Percentage of Anomalous Service Times: {(len(anomalies)/len(self.df))*100:.2f}%")
+        print(f"------------------------------------------------")
+        
+        return anomalies
+
+    def visualize_distribution(self):
+        """
+        Visualizes the service time distribution to identify skewness.
+        Demonstrates 'Data Visualization' skills with Python.
+        """
+        plt.figure(figsize=(10, 6))
+        
+        # Plot distribution with Kernel Density Estimate
+        sns.histplot(self.df['resolution_time_mins'], bins=30, kde=True, color='teal')
+        
+        plt.title('Distribution of Customer Service Resolution Times')
+        plt.xlabel('Resolution Time (Minutes)')
+        plt.ylabel('Frequency')
+        
+        # Highlight the "Business Insight"
+        plt.axvline(self.df['resolution_time_mins'].mean(), color='red', linestyle='--', label='Mean Time')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        
+        print("Generating visualization...")
+        plt.show()
+
+# --- EXECUTION BLOCK ---
+
+if __name__ == "__main__":
+    # Initialize the auditor
+    auditor = ServiceDataAuditor()
+    
+    # Run the workflow
+    auditor.clean_data()
+    anomalies = auditor.detect_anomalies()
+    
+    # Show the specific "bad actors" or problematic transactions
+    if not anomalies.empty:
+        print("\nSample Anomalies (Potential Bottlenecks):")
+        print(anomalies[['ticket_id', 'service_category', 'resolution_time_mins']].head())
+    
+    # Visualize
+    auditor.visualize_distribution()
